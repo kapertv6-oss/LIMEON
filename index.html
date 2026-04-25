@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LIMEON — Платформа Видеохостинга</title>
+    <style>
+        :root { --lime: #32ff7e; --bg: #050505; --card: #111; --text: #fff; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; transition: 0.3s; }
+        body { background: var(--bg); color: var(--text); margin: 0; display: flex; height: 100vh; overflow: hidden; }
+
+        /* АВТОРИЗАЦИЯ */
+        #authLayer { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; justify-content: center; align-items: center; }
+        .auth-box { background: var(--card); padding: 40px; border-radius: 30px; border: 1px solid var(--lime); width: 380px; text-align: center; }
+
+        /* ИНТЕРФЕЙС */
+        aside { width: 260px; background: #000; border-right: 1px solid #222; padding: 20px; display: flex; flex-direction: column; z-index: 10; }
+        .logo { font-size: 32px; font-weight: 900; color: var(--lime); text-shadow: 0 0 15px var(--lime); margin-bottom: 40px; cursor: pointer; }
+        .nav { padding: 12px 15px; color: #888; cursor: pointer; border-radius: 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+        .nav:hover, .nav.active { background: rgba(50,255,126,0.1); color: var(--lime); }
+
+        main { flex: 1; overflow-y: auto; background: radial-gradient(circle at top right, #0d1a0d, #050505); position: relative; }
+        header { padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.5); position: sticky; top: 0; z-index: 100; }
+
+        .section { display: none; padding: 30px; animation: fadeIn 0.5s; }
+        .section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* КАРТОЧКИ */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+        .v-card { background: var(--card); border-radius: 18px; overflow: hidden; cursor: pointer; border: 1px solid #222; }
+        .v-card:hover { border-color: var(--lime); transform: translateY(-5px); }
+        .v-img { width: 100%; aspect-ratio: 16/9; background: #222; object-fit: cover; }
+        .v-info { padding: 15px; }
+
+        /* ПЛЕЕР */
+        #player { display: none; padding: 20px 40px; }
+        .vid-window { width: 100%; max-width: 1000px; border-radius: 20px; border: 2px solid var(--lime); overflow: hidden; background: #000; box-shadow: 0 0 30px rgba(50,255,126,0.2); }
+        video { width: 100%; display: block; }
+        .vid-meta { margin-top: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #222; padding-bottom: 20px; }
+
+        /* КОММЕНТАРИИ */
+        .comm-section { margin-top: 30px; max-width: 1000px; }
+        .comm-item { background: #111; padding: 15px; border-radius: 15px; margin-bottom: 10px; border-left: 4px solid var(--lime); }
+
+        /* КНОПКИ */
+        .btn { background: var(--lime); color: #000; border: none; padding: 12px 25px; border-radius: 12px; font-weight: 800; cursor: pointer; }
+        .btn-out { background: transparent; border: 1px solid var(--lime); color: var(--lime); }
+        input, textarea { width: 100%; padding: 14px; margin: 10px 0; background: #000; border: 1px solid #333; color: #fff; border-radius: 12px; outline: none; }
+
+        #notifs { position: fixed; bottom: 20px; right: 20px; z-index: 10000; }
+        .notif { background: var(--card); color: var(--lime); border: 1px solid var(--lime); padding: 15px 25px; border-radius: 15px; margin-top: 10px; animation: fadeIn 0.3s; font-weight: bold; box-shadow: 0 0 15px var(--lime); }
+    </style>
+</head>
+<body>
+
+    <!-- Слой авторизации -->
+    <div id="authLayer">
+        <div class="auth-box">
+            <h1 style="color: var(--lime); margin-bottom: 10px;">LIMEON</h1>
+            <p id="authText">Вход или Регистрация</p>
+            <input type="text" id="aLog" placeholder="Логин (имя канала)">
+            <input type="password" id="aPass" placeholder="Пароль">
+            <label style="font-size: 12px; color: #555;"><input type="checkbox" id="aRem"> Запомнить меня</label>
+            <button class="btn" style="width: 100%; margin-top: 20px;" onclick="auth()">ПРОДОЛЖИТЬ</button>
+        </div>
+    </div>
+
+    <div id="notifs"></div>
+
+    <aside>
+        <div class="logo" onclick="location.reload()">LIMEON</div>
+        <div class="nav active" onclick="setPage('home')">🏠 Главная лента</div>
+        <div class="nav" onclick="setPage('myChannel')">👤 Мой канал</div>
+        <div class="nav" onclick="setPage('studio')">⚙️ Студия LIMEON</div>
+        <div style="margin-top: auto;">
+            <p style="font-size: 10px; color: #444;">ID: <b id="dispID" style="color: var(--lime);">#000000</b></p>
+            <button class="btn btn-out" style="width: 100%; font-size: 10px;" onclick="logout()">ВЫЙТИ</button>
+        </div>
+    </aside>
+
+    <main>
+        <header>
+            <div style="font-weight: bold; color: var(--lime);">LIMEON Global Feed</div>
+            <button class="btn" onclick="openMod('upM')">+ ОПУБЛИКОВАТЬ</button>
+        </header>
+
+        <!-- Главная лента (Все видео) -->
+        <div id="home" class="section active">
+            <h2>Рекомендуемое для вас</h2>
+            <div class="grid" id="globalGrid"></div>
+        </div>
+
+        <!-- Мой канал -->
+        <div id="myChannel" class="section">
+            <h1 id="myChannelName">Загрузка...</h1>
+            <div class="grid" id="myGrid"></div>
+        </div>
+
+        <!-- Студия -->
+        <div id="studio" class="section">
+            <h1>Настройки канала</h1>
+            <input type="text" id="sName" placeholder="Изменить имя канала">
+            <textarea id="sDesc" placeholder="Описание канала"></textarea>
+            <button class="btn" onclick="saveStudio()">СОХРАНИТЬ ИЗМЕНЕНИЯ</button>
+        </div>
+
+        <!-- Плеер -->
+        <div id="player" class="section">
+            <button class="btn btn-out" style="margin-bottom: 20px;" onclick="setPage('home')">← НАЗАД К ЛЕНТЕ</button>
+            <div class="vid-window"><video id="v" controls></video></div>
+            <div class="vid-meta">
+                <div>
+                    <h1 id="vTitle" style="margin:0;">Название</h1>
+                    <p id="vAuthor" style="color: var(--lime); font-weight: bold;"></p>
+                </div>
+                <button class="btn btn-out" onclick="addLike()">❤ ЛАЙК <span id="vLikes">0</span></button>
+            </div>
+            <div class="comm-section">
+                <h3>Комментарии</h3>
+                <input type="text" id="cInput" placeholder="Оставьте ваше мнение...">
+                <button class="btn" onclick="addComm()">ОТПРАВИТЬ</button>
+                <div id="cList" style="margin-top: 20px;"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Модалка загрузки -->
+    <div id="upM" class="modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:2000; justify-content:center; align-items:center;">
+        <div class="auth-box">
+            <h3>Загрузка видео</h3>
+            <input type="text" id="upTitle" placeholder="Название ролика">
+            <label style="font-size:12px; display:block; text-align:left;">Файл видео:</label><input type="file" id="upFile" accept="video/*">
+            <label style="font-size:12px; display:block; text-align:left;">Обложка (превью):</label><input type="file" id="upPre" accept="image/*">
+            <button class="btn" style="width:100%; margin-top:20px;" onclick="upload()">ОПУБЛИКОВАТЬ</button>
+            <button class="btn btn-out" style="width:100%; margin-top:10px; border-color:#333; color:#555;" onclick="closeMod('upM')">ОТМЕНА</button>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = JSON.parse(localStorage.getItem('L_SESSION')) || null;
+        let db = JSON.parse(localStorage.getItem('L_DATABASE')) || {};
+        let sessionVideos = {}; // Память для видео в текущей сессии
+
+        if(currentUser) { document.getElementById('authLayer').style.display='none'; init(); }
+
+        function auth() {
+            const login = document.getElementById('aLog').value.trim();
+            const pass = document.getElementById('aPass').value;
+            const remember = document.getElementById('aRem').checked;
+
+            if(!login || !pass) return notify("Заполните поля!");
+
+            if(db[login]) {
+                if(db[login].password !== pass) return notify("Неверный пароль!");
+            } else {
+                db[login] = { password: pass, name: login, desc: '', id: Math.floor(100000+Math.random()*900000), videos: [] };
+                saveDB();
+            }
+
+            currentUser = login;
+            if(remember) localStorage.setItem('L_SESSION', JSON.stringify(login));
+            document.getElementById('authLayer').style.display='none';
+            init(); notify("Успешный вход!");
+        }
+
+        function init() {
+            const u = db[currentUser];
+            document.getElementById('dispID').innerText = "#" + u.id;
+            document.getElementById('myChannelName').innerText = u.name;
+            renderGlobal();
+            renderMy();
+        }
+
+        function upload() {
+            const title = document.getElementById('upTitle').value;
+            const file = document.getElementById('upFile').files[0];
+            const pre = document.getElementById('upPre').files[0];
+
+            if(!title || !file) return notify("Выберите видео и название!");
+
+            const vID = Date.now();
+            sessionVideos[vID] = URL.createObjectURL(file); // Blob URL для работы плеера
+
+            const finish = (thumb = '') => {
+                db[currentUser].videos.push({ id: vID, title: title, thumb: thumb, likes: 0, comms: [] });
+                saveDB(); init(); closeMod('upM'); notify("Видео загружено!");
+            };
+
+            if(pre) {
+                const reader = new FileReader();
+                reader.onload = (e) => finish(e.target.result);
+                reader.readAsDataURL(pre);
+            } else finish();
+        }
+
+        function renderGlobal() {
+            const grid = document.getElementById('globalGrid'); grid.innerHTML = "";
+            Object.keys(db).forEach(userKey => {
+                db[userKey].videos.forEach(v => {
+                    grid.innerHTML += `
+                        <div class="v-card" onclick="watch('${userKey}', ${v.id})">
+                            <img src="${v.thumb || 'https://placeholder.com'}" class="v-img">
+                            <div class="v-info"><b>${v.title}</b><br><small style="color:var(--lime)">${db[userKey].name} ✔</small></div>
+                        </div>`;
+                });
+            });
+        }
+
+        function renderMy() {
+            const grid = document.getElementById('myGrid'); grid.innerHTML = "";
+            db[currentUser].videos.forEach(v => {
+                grid.innerHTML += `
+                    <div class="v-card" onclick="watch('${currentUser}', ${v.id})">
+                        <img src="${v.thumb || 'https://placeholder.com'}" class="v-img">
+                        <div class="v-info"><b>${v.title}</b></div>
+                    </div>`;
+            });
+        }
+
+        let curActiveVid = null;
+        function watch(author, id) {
+            const vData = db[author].videos.find(x => x.id === id);
+            curActiveVid = { author, id };
+            setPage('player');
+            document.getElementById('v').src = sessionVideos[id] || "";
+            document.getElementById('vTitle').innerText = vData.title;
+            document.getElementById('vAuthor').innerText = db[author].name + " ✔";
+            document.getElementById('vLikes').innerText = vData.likes;
+            renderComms(vData.comms);
+            if(document.getElementById('v').src) document.getElementById('v').play();
+            else notify("Видео доступно только в текущей сессии");
+        }
+
+        function addLike() {
+            const v = db[curActiveVid.author].videos.find(x => x.id === curActiveVid.id);
+            v.likes++; saveDB();
+            document.getElementById('vLikes').innerText = v.likes;
+        }
+
+        function addComm() {
+            const text = document.getElementById('cInput').value;
+            if(!text) return;
+            const v = db[curActiveVid.author].videos.find(x => x.id === curActiveVid.id);
+            v.comms.push({ user: db[currentUser].name, text: text });
+            saveDB(); renderComms(v.comms);
+            document.getElementById('cInput').value = "";
+        }
+
+        function renderComms(list) {
+            const box = document.getElementById('cList'); box.innerHTML = "";
+            list.slice().reverse().forEach(c => {
+                box.innerHTML += `<div class="comm-item"><b>${c.user}:</b> ${c.text}</div>`;
+            });
+        }
+
+        function saveStudio() {
+            db[currentUser].name = document.getElementById('sName').value || db[currentUser].name;
+            db[currentUser].desc = document.getElementById('sDesc').value || db[currentUser].desc;
+            saveDB(); init(); notify("Данные канала обновлены!");
+        }
+
+        function logout() { localStorage.removeItem('L_SESSION'); location.reload(); }
+        function saveDB() { localStorage.setItem('L_DATABASE', JSON.stringify(db)); }
+        function notify(t) {
+            const n = document.createElement('div'); n.className='notif'; n.innerText=t;
+            document.getElementById('notifs').appendChild(n); setTimeout(()=>n.remove(),3000);
+        }
+        function setPage(id) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            if(id !== 'player') document.getElementById('v').pause();
+        }
+        function openMod(id) { document.getElementById(id).style.display='flex'; }
+        function closeMod(id) { document.getElementById(id).style.display='none'; }
+    </script>
+</body>
+</html>
