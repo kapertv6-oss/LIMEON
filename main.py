@@ -6,50 +6,62 @@ import uvicorn
 
 app = FastAPI()
 
-# Разрешаем фронтенду подключаться к бэкенду
+# НАСТРОЙКА CORS: Это решит проблему "не работает" при запросах с ПК
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"],  # Разрешить запросы со всех адресов
+    allow_credentials=True,
+    allow_methods=["*"],  # Разрешить все методы (GET, POST и т.д.)
+    allow_headers=["*"],  # Разрешить все заголовки
 )
 
-# Имитация базы данных (в реальности тут будет PostgreSQL или MongoDB)
+# Имитация базы данных (данные сбросятся при перезагрузке сервера)
 users_db = {}
 videos_db = []
 
-class User(BaseModel):
+# Модели данных
+class UserData(BaseModel):
     login: str
     password: str
-    name: Optional[str] = None
 
-class Video(BaseModel):
+class VideoData(BaseModel):
     title: str
     author: str
     video_url: str
     thumb_url: Optional[str] = None
 
+# Главная страница (чтобы не было Not Found)
+@app.get("/")
+async def root():
+    return {"status": "online", "message": "LIMEON Server is Live!"}
+
+# РЕГИСТРАЦИЯ
 @app.post("/register")
-async def register(user: User):
+async def register(user: UserData):
     if user.login in users_db:
         raise HTTPException(status_code=400, detail="Пользователь уже существует")
     users_db[user.login] = {"password": user.password, "name": user.login}
     return {"message": "Успешная регистрация"}
 
+# ВХОД
 @app.post("/login")
-async def login(user: User):
-    if user.login not in users_db or users_db[user.login]["password"] != user.password:
-        raise HTTPException(status_code=400, detail="Неверный логин или пароль")
+async def login(user: UserData):
+    if user.login not in users_db:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    if users_db[user.login]["password"] != user.password:
+        raise HTTPException(status_code=401, detail="Неверный пароль")
     return {"message": "Вход выполнен", "name": users_db[user.login]["name"]}
 
+# ПОЛУЧЕНИЕ ВСЕХ ВИДЕО
 @app.get("/videos")
 async def get_videos():
     return videos_db
 
+# ЗАГРУЗКА ВИДЕО
 @app.post("/upload")
-async def upload_video(video: Video):
+async def upload_video(video: VideoData):
     videos_db.append(video.dict())
-    return {"message": "Видео добавлено"}
+    return {"message": "Видео успешно добавлено на сервер"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
